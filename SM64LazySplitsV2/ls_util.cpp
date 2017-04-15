@@ -1,5 +1,4 @@
-#include "lazysplits_util.h"
-#include "cv_frame_buf.h"
+#include "ls_util.h"
 
 #include <util\threading.h>
 

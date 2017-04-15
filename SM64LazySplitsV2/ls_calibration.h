@@ -8,16 +8,17 @@ extern "C" {
 
 namespace lazysplits {
 
-class cv_source_calibration{
+class ls_source_calibration{
 	public:
-		cv_source_calibration();
-		~cv_source_calibration();
+		ls_source_calibration();
+		~ls_source_calibration();
 
 		void lock_mutex();
 		void unlock_mutex();
 
 		void set_image( const char* path );
 		bool image_loaded();
+		bool tex_loaded();
 		gs_texture_t* get_tex();
 
 		void set_effect( const char* path );

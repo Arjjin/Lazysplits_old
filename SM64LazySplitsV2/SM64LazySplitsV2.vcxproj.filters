@@ -21,16 +21,16 @@
     <ClInclude Include="SM64_constants.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="cv_frame_buf.h">
+    <ClInclude Include="ls_calibration.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="lazysplits_util.h">
+    <ClInclude Include="ls_frame_buf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="cv_thread.h">
+    <ClInclude Include="ls_thread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="cv_calibration.h">
+    <ClInclude Include="ls_util.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -41,16 +41,16 @@
     <ClCompile Include="OpenCVTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="cv_frame_buf.cpp">
+    <ClCompile Include="ls_calibration.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="lazysplits_util.cpp">
+    <ClCompile Include="ls_frame_buf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="cv_thread.cpp">
+    <ClCompile Include="ls_thread.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="cv_calibration.cpp">
+    <ClCompile Include="ls_util.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

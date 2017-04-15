@@ -1,25 +1,25 @@
 #pragma once
 
-#include "cv_frame_buf.h"
+#include "ls_frame_buf.h"
 
 #include <util\threading.h>
 #include <atomic>
 
 namespace lazysplits{
 
-class cv_thread_handler{
+class ls_thread_handler{
 	public:
-		cv_thread_handler();
-		~cv_thread_handler();
+		ls_thread_handler();
+		~ls_thread_handler();
 
-		static void* cv_thread_frame_proc( void* data );
+		static void* ls_thread_frame_proc( void* data );
 
-		void cv_thread_init( cv_frame_buf* frame_buf );
-		void cv_thread_wake();
-		void cv_thread_terminate();
+		void ls_thread_init( ls_frame_buf* frame_buf );
+		void ls_thread_wake();
+		void ls_thread_terminate();
 			
-		bool cv_thread_is_live();
-		bool cv_thread_is_sleeping();
+		bool ls_thread_is_live();
+		bool ls_thread_is_sleeping();
 
 	private:
 		pthread_t thread;
@@ -30,8 +30,8 @@ class cv_thread_handler{
 		std::atomic_bool thread_should_wake;
 		std::atomic_bool thread_should_terminate;
 
-		pthread_cond_t COND_CV_THREAD_WAKE;
-		pthread_cond_t COND_CV_THREAD_STOPPED;
+		pthread_cond_t COND_LS_THREAD_WAKE;
+		pthread_cond_t COND_LS_THREAD_STOPPED;
 
 		struct thread_data{
 			pthread_mutex_t* thread_mutex;
@@ -40,10 +40,10 @@ class cv_thread_handler{
 			std::atomic_bool* thread_should_wake;
 			std::atomic_bool* thread_should_terminate;
 
-			pthread_cond_t* COND_CV_THREAD_WAKE;
-			pthread_cond_t* COND_CV_THREAD_STOPPED;
+			pthread_cond_t* COND_LS_THREAD_WAKE;
+			pthread_cond_t* COND_LS_THREAD_STOPPED;
 
-			cv_frame_buf* frame_buf;
+			ls_frame_buf* frame_buf;
 		};
 };
 

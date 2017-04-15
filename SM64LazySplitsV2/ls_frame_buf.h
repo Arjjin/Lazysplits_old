@@ -8,10 +8,10 @@
 
 namespace lazysplits {
 
-class cv_frame_buf{
+class ls_frame_buf{
 	public :
-		cv_frame_buf();
-		~cv_frame_buf();
+		ls_frame_buf();
+		~ls_frame_buf();
 
 		pthread_mutex_t* get_mutex();
 		/* TODO : implement this */
