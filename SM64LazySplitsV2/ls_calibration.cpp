@@ -10,6 +10,8 @@ ls_source_calibration::ls_source_calibration(){
 	calib_img = static_cast<gs_image_file_t*>( bzalloc( sizeof(gs_image_file_t) ) ); 
 	calib_effect = static_cast<gs_effect_t*>( bzalloc( sizeof(gs_effect_t) ) );
 
+	calib_img_path = "null";
+
 	opacity = 1.0F;
 	offset_x = 0.0F;
 	offset_y = 0.0F;
@@ -32,20 +34,29 @@ void ls_source_calibration::lock_mutex(){ pthread_mutex_lock(&calib_mutex); }
 
 void ls_source_calibration::unlock_mutex(){ pthread_mutex_unlock(&calib_mutex); }
 
-void ls_source_calibration::set_image( const char* path ){
-	obs_enter_graphics();
-	gs_image_file_free(calib_img);
-	obs_leave_graphics();
+bool ls_source_calibration::try_set_image( const char* path ){
+	//check if path is empty/duplicate
+	if( *path && strcmp( path, calib_img_path.c_str() ) != 0 ){
+		obs_enter_graphics();
+		gs_image_file_free(calib_img);
+		obs_leave_graphics();
 		
-	gs_image_file_init( calib_img, path );
+		gs_image_file_init( calib_img, path );
 		
-	obs_enter_graphics();
-	gs_image_file_init_texture(calib_img);
-	calib_tex = calib_img->texture;
-	obs_leave_graphics();
+		obs_enter_graphics();
+		gs_image_file_init_texture(calib_img);
+		calib_tex = calib_img->texture;
+		obs_leave_graphics();
+
+		calib_img_path = path;
+
+		blog( LOG_INFO, "[lazysplits] set_image() : %s", path );
+		return true;
+	}
+	return false;
 }
 
-bool ls_source_calibration::image_loaded(){ return calib_img->loaded; }
+bool ls_source_calibration::image_loaded(){ return (calib_img) ? calib_img->loaded : false; }
 
 bool ls_source_calibration::tex_loaded(){ return calib_tex != NULL; }
 

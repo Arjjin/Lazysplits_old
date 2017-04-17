@@ -1,8 +1,5 @@
 #include <obs-module.h>
-#include <graphics\effect.h>
-extern "C" {
-#include <graphics\image-file.h>
-}
+
 #include <graphics\vec2.h>
 
 #include <opencv2\highgui\highgui.hpp>
@@ -14,15 +11,13 @@ extern "C" {
 #include "ls_calibration.h"
 #include "ls_util.h"
 
-#include <atomic>
-
 /* TODO : limit to one filter instance in OBS*/
 
 #define SETTING_POLLING_MS "polling_ms"
 #define SETTING_CV_FRAME_SKIP "cv_frame_skip"
 #define SETTING_IS_OFFSET_CALIBRATION "is_offset_calibration"
 #define SETTING_CALIB_IMAGE_PATH "calib_image_path"
-#define SETTING_CALIB_IMAGE_OPACITY "calib_image_opcaity"
+#define SETTING_CALIB_IMAGE_OPACITY "calib_image_opacity"
 #define SETTING_OFFSET_X "offset_x"
 #define SETTING_OFFSET_Y "offset_y"
 //#define SETTING_STAR_COUNT_CONSTRAIN_SCALE "starcount_constrain_scale"
@@ -31,7 +26,7 @@ extern "C" {
 
 #define TEXT_POLLING_MS "Polling time (ms)"
 #define TEXT_CV_FRAME_SKIP "Analyze every (n) frames"
-#define TEXT_IS_OFFSET_CALIBRATION "Calibrate offset"
+#define TEXT_IS_OFFSET_CALIBRATION "Source calibration"
 #define TEXT_CALIB_IMAGE_PATH "Calibration image"
 #define TEXT_CALIB_IMAGE_OPACITY "Calibration image opacity"
 #define TEXT_OFFSET_X "Frame x-offset"
@@ -57,8 +52,6 @@ struct lazy_split_filter_data {
 	//cv calibration stuff
 	lazysplits::ls_source_calibration* calib;
 	bool is_calib;
-
-	const char* calib_img_path;
 };
 
 static const char* lazy_splits_filter_name(void* type_data) {
@@ -68,24 +61,19 @@ static const char* lazy_splits_filter_name(void* type_data) {
 static void lazy_splits_filter_update(void *data, obs_data_t *settings)
 {
 	struct lazy_split_filter_data *filter = static_cast<lazy_split_filter_data*>(data);
-	//LS_LOG( LOG_INFO, "image path :  %s", calib_img_path );
+
 	filter->polling_ms = static_cast<uint64_t>( obs_data_get_int( settings, SETTING_POLLING_MS ) );
 	filter->cv_frame_skip = static_cast<uint64_t>( obs_data_get_int( settings, SETTING_CV_FRAME_SKIP ) );
 	
 	filter->is_calib = obs_data_get_bool( settings, SETTING_IS_OFFSET_CALIBRATION );
-	filter->calib_img_path = obs_data_get_string( settings, SETTING_CALIB_IMAGE_PATH );
-
-	//if calibration image path exists, free and initialize an image from the path, and set our calib_image texture
-	if( *filter->calib_img_path ){
-		filter->calib->set_image(filter->calib_img_path);
-	}
+	filter->calib->try_set_image( obs_data_get_string( settings, SETTING_CALIB_IMAGE_PATH ) );
 
 	filter->calib->lock_mutex();
-	filter->calib->set_opacity( obs_data_get_double( settings, SETTING_CALIB_IMAGE_OPACITY ) );
-	filter->calib->set_offset_x( obs_data_get_double( settings, SETTING_OFFSET_X ) );
-	filter->calib->set_offset_y( obs_data_get_double( settings, SETTING_OFFSET_Y ) );
-	filter->calib->set_scale_x( obs_data_get_double( settings, SETTING_SCALE_X ) );
-	filter->calib->set_scale_y( obs_data_get_double( settings, SETTING_SCALE_Y ) );
+	filter->calib->set_opacity( obs_data_get_double( settings, SETTING_CALIB_IMAGE_OPACITY )/100.0F );
+	filter->calib->set_offset_x( obs_data_get_double( settings, SETTING_OFFSET_X )/100.0F );
+	filter->calib->set_offset_y( obs_data_get_double( settings, SETTING_OFFSET_Y )/100.0F );
+	filter->calib->set_scale_x( obs_data_get_double( settings, SETTING_SCALE_X )/100.0F );
+	filter->calib->set_scale_y( obs_data_get_double( settings, SETTING_SCALE_Y )/100.0F );
 	filter->calib->unlock_mutex();
 
 }
@@ -93,13 +81,6 @@ static void lazy_splits_filter_update(void *data, obs_data_t *settings)
 static void* lazy_splits_filter_create( obs_data_t* settings, obs_source_t* context )
 {
 	struct lazy_split_filter_data *filter = new lazy_split_filter_data;
-	
-	/*
-	struct lazy_split_filter_data *filter = static_cast<lazy_split_filter_data*>(
-		bzalloc(sizeof(struct lazy_split_filter_data))
-	);
-	*/
-	
 
 	filter->context = context;
 	filter->cv_frame_count = 1;
@@ -109,22 +90,16 @@ static void* lazy_splits_filter_create( obs_data_t* settings, obs_source_t* cont
 	filter->thread_h = new lazysplits::ls_thread_handler;
 	filter->calib = new lazysplits::ls_source_calibration;
 	
-	char* img_path =  obs_module_file("img");
 	char* effect_path =  obs_module_file("effect/calibration.effect");
-
-	if( img_path ){filter->calib_img_path = img_path; }
-	else{ blog( LOG_INFO, "[lazysplits] obs_module_file(\"img\") is null" ); }
-
 	if( effect_path ){
 		blog( LOG_INFO, "[lazysplits] creating calibration effect : %s", effect_path );
 		filter->calib->set_effect(effect_path);
 	}
 	else{ blog( LOG_INFO, "[lazysplits] obs_module_file(\"effect\") is null" ); }
+	bfree(effect_path);
 
 	lazy_splits_filter_update( filter, settings );
 
-	bfree(img_path);
-	bfree(effect_path);
 	return filter;
 }
 
@@ -144,7 +119,7 @@ static void lazy_splits_filter_video_tick( void *data, float seconds ){
 
 	//initialize ls thread
 	if( !filter->thread_h->ls_thread_is_live() ){
-		filter->thread_h->ls_thread_init( filter->frame_buf );
+		filter->thread_h->ls_thread_init( filter->frame_buf, filter->calib );
 	}
 
 	if( filter->cv_frame_count % 100 == 0){
@@ -161,14 +136,13 @@ static void lazy_splits_filter_video_tick( void *data, float seconds ){
 
 static void lazy_splits_filter_render_video(void *data, gs_effect_t *effect){
 	struct lazy_split_filter_data* filter = static_cast<lazy_split_filter_data*>(data);
-
+	
 	if( !filter->is_calib || !filter->calib->tex_loaded() || !filter->calib->effect_loaded() || !filter->calib->image_loaded() ){
 		obs_source_skip_video_filter(filter->context);
 		return;
 	}
-
+	
 	if ( !obs_source_process_filter_begin( filter->context, GS_RGBA, OBS_ALLOW_DIRECT_RENDERING) ){
-		blog( LOG_INFO, "[lazysplits] !obs_source_process_filter_begin()" );
 		return;
 	}
 
@@ -176,19 +150,29 @@ static void lazy_splits_filter_render_video(void *data, gs_effect_t *effect){
 	gs_eparam_t *param;
 
 	filter->calib->lock_mutex();
-	float calib_opacity = filter->calib->get_opacity()/100.0F;
-	calib_offset.x = filter->calib->get_offset_x()/100.0F;
-	calib_offset.y = filter->calib->get_offset_y()/100.0F;
-	calib_scale.x = filter->calib->get_scale_x()/100.0F;
-	calib_scale.y = filter->calib->get_scale_y()/100.0F;
+	float calib_opacity = filter->calib->get_opacity();
+	calib_offset.x = filter->calib->get_offset_x();
+	calib_offset.y = filter->calib->get_offset_y();
+	calib_scale.x = filter->calib->get_scale_x();
+	calib_scale.y = filter->calib->get_scale_y();
 	filter->calib->unlock_mutex();
+
+	//aspect correction
+	float source_width = obs_source_get_width(filter->context);
+	float source_height = obs_source_get_height(filter->context);
+	float tex_width = gs_texture_get_width( filter->calib->get_tex() );
+	float tex_height = gs_texture_get_height( filter->calib->get_tex() );
+	float aspect_correction = (source_width/source_height) / (tex_width/tex_height);
+
+	if( source_width >= source_height ){ calib_scale.x/=aspect_correction; }
+	else{ calib_scale.y/=aspect_correction; }
 
 	//scale centering
 	float scale_dif_x = 1.0F - calib_scale.x;
 	float scale_dif_y = 1.0F - calib_scale.y;
 	calib_offset.x += scale_dif_x * 0.5F;
 	calib_offset.y += scale_dif_y * 0.5F;
-	
+
 	param = gs_effect_get_param_by_name( filter->calib->get_effect(), "target" );
 	gs_effect_set_texture( param, filter->calib->get_tex() );
 	param = gs_effect_get_param_by_name( filter->calib->get_effect(), "target_opacity" );
@@ -197,7 +181,7 @@ static void lazy_splits_filter_render_video(void *data, gs_effect_t *effect){
 	gs_effect_set_vec2( param, &calib_offset );
 	param = gs_effect_get_param_by_name( filter->calib->get_effect(), "target_scale" );
 	gs_effect_set_vec2( param, &calib_scale );
-	
+
 	obs_source_process_filter_end( filter->context, filter->calib->get_effect(), 0, 0 );
 	//obs_source_skip_video_filter(filter->context);
 }
@@ -291,9 +275,6 @@ static obs_properties_t* lazy_splits_filter_properties(void* data)
 	obs_properties_add_float_slider( props, SETTING_SCALE_X, TEXT_SCALE_X, 50.0, 150.0, 0.05 );
 	obs_properties_add_float_slider( props, SETTING_SCALE_Y, TEXT_SCALE_Y, 50.0, 150.0, 0.05 );
 
-	//UNUSED_PARAMETER(data);
-	bfree(calib_img_path);
-	bfree(calib_img_filter_str);
 	return props;
 }
 
@@ -351,10 +332,6 @@ struct obs_source_info lazy_splits_filter = {
     /* free_type_data      */ 0,
     /* audio_render        */ 0
 };
-
-
-
-//OBS_MODULE_USE_DEFAULT_LOCALE("sm64-lazy-splits", "en-US")
 
 MODULE_EXPORT const char* obs_module_name(void) {
     return "SM64 Lazy Splits";

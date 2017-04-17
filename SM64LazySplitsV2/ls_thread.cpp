@@ -103,7 +103,7 @@ void* ls_thread_handler::ls_thread_frame_proc( void* data ){
 	return NULL;
 }
 
-void ls_thread_handler::ls_thread_init( ls_frame_buf* frame_buf ){
+void ls_thread_handler::ls_thread_init( ls_frame_buf* frame_buf, ls_source_calibration* calib ){
 
 	//thread data structure
 	thread_data* t_data = new thread_data;
@@ -115,6 +115,7 @@ void ls_thread_handler::ls_thread_init( ls_frame_buf* frame_buf ){
 	t_data->COND_LS_THREAD_WAKE = &COND_LS_THREAD_WAKE;
 	t_data->COND_LS_THREAD_STOPPED = &COND_LS_THREAD_STOPPED;
 	t_data->frame_buf = frame_buf;
+	t_data->calib = calib;
 
 	int t = pthread_create( &thread, NULL, ls_thread_frame_proc, static_cast<void*>(t_data) );
 	if( t != 0 ){ blog( LOG_ERROR, "[lazysplits] pthread error : %i", t ); }

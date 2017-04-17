@@ -6,6 +6,8 @@ extern "C" {
 }
 #include <util\threading.h>
 
+#include <string>
+
 namespace lazysplits {
 
 class ls_source_calibration{
@@ -16,7 +18,7 @@ class ls_source_calibration{
 		void lock_mutex();
 		void unlock_mutex();
 
-		void set_image( const char* path );
+		bool try_set_image( const char* path );
 		bool image_loaded();
 		bool tex_loaded();
 		gs_texture_t* get_tex();
@@ -46,9 +48,10 @@ class ls_source_calibration{
 		float scale_x;
 		float scale_y;
 	
+		std::string calib_img_path;
 		gs_image_file_t* calib_img;
-		gs_effect_t* calib_effect;
 		gs_texture_t* calib_tex;
+		gs_effect_t* calib_effect;
 
 };
 

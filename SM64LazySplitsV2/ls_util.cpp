@@ -5,8 +5,6 @@
 #include <opencv2\highgui\highgui.hpp>
 #include <opencv2\imgproc\imgproc.hpp>
 
-#include <sstream>
-
 using namespace lazysplits;
 
 cv::Mat lazysplits::OBS_2_CV_BGR( obs_source_frame* frame ){

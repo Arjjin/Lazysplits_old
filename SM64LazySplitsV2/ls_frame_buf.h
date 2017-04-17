@@ -4,8 +4,6 @@
 #include <util\threading.h>
 #include <util\circlebuf.h>
 
-#include <atomic>
-
 namespace lazysplits {
 
 class ls_frame_buf{
@@ -27,15 +25,6 @@ class ls_frame_buf{
 		pthread_mutex_t frame_buf_mutex;
 		int frame_count;
 		int frame_limit;
-};	
-
-/*
-struct cv_thread_data{
-	std::atomic_bool* cv_thread_do_work;
-	std::atomic_bool* cv_thread_terminate;
-	cv_frame_buf* frame_buf;
-	pthread_cond_t* frame_buf_ready;
 };
-*/
 
 }	//namespace lazysplits

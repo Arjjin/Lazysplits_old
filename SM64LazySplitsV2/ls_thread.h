@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ls_frame_buf.h"
+#include "ls_calibration.h"
 
 #include <util\threading.h>
 #include <atomic>
@@ -14,7 +15,7 @@ class ls_thread_handler{
 
 		static void* ls_thread_frame_proc( void* data );
 
-		void ls_thread_init( ls_frame_buf* frame_buf );
+		void ls_thread_init( ls_frame_buf* frame_buf, ls_source_calibration* calib  );
 		void ls_thread_wake();
 		void ls_thread_terminate();
 			
@@ -44,6 +45,7 @@ class ls_thread_handler{
 			pthread_cond_t* COND_LS_THREAD_STOPPED;
 
 			ls_frame_buf* frame_buf;
+			ls_source_calibration* calib;
 		};
 };
 
