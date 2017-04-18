@@ -12,6 +12,7 @@ ls_frame_buf::ls_frame_buf(){
 }
 
 ls_frame_buf::~ls_frame_buf(){
+	blog( LOG_INFO, "[lazysplits] destroying ls_frame_buf" );
 	pthread_mutex_destroy( &frame_buf_mutex );
 	circlebuf_free(&buf);
 }

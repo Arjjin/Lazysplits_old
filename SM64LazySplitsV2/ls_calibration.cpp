@@ -20,6 +20,7 @@ ls_source_calibration::ls_source_calibration(){
 }
 
 ls_source_calibration::~ls_source_calibration(){
+	blog( LOG_INFO, "[lazysplits] destroying ls_source_calibration" );
 	pthread_mutex_destroy(&calib_mutex);
 
 	obs_enter_graphics();

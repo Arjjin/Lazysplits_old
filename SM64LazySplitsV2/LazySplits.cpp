@@ -6,10 +6,10 @@
 #include <opencv2\imgproc\imgproc.hpp>
 
 #include "SM64_constants.h"
-#include "ls_frame_buf.h"
-#include "ls_thread.h"
-#include "ls_calibration.h"
+#include "ls_filter_data.h"
 #include "ls_util.h"
+
+#include <string>
 
 /* TODO : limit to one filter instance in OBS*/
 
@@ -35,6 +35,7 @@
 #define TEXT_SCALE_X "Frame width scaling"
 #define TEXT_SCALE_Y "Frame height scaling"
 
+/*
 struct lazy_split_filter_data {
 	obs_source_t* context;
 
@@ -53,14 +54,17 @@ struct lazy_split_filter_data {
 	lazysplits::ls_source_calibration* calib;
 	bool is_calib;
 };
+*/
 
-static const char* lazy_splits_filter_name(void* type_data) {
+using namespace lazysplits;
+
+static const char* ls_filter_name(void* type_data) {
     return "SM64 Lazy Splits";
 }
 
-static void lazy_splits_filter_update(void *data, obs_data_t *settings)
+static void ls_filter_update(void *data, obs_data_t *settings)
 {
-	struct lazy_split_filter_data *filter = static_cast<lazy_split_filter_data*>(data);
+	struct ls_filter_data *filter = static_cast<ls_filter_data*>(data);
 
 	filter->polling_ms = static_cast<uint64_t>( obs_data_get_int( settings, SETTING_POLLING_MS ) );
 	filter->cv_frame_skip = static_cast<uint64_t>( obs_data_get_int( settings, SETTING_CV_FRAME_SKIP ) );
@@ -78,17 +82,12 @@ static void lazy_splits_filter_update(void *data, obs_data_t *settings)
 
 }
 
-static void* lazy_splits_filter_create( obs_data_t* settings, obs_source_t* context )
+static void* ls_filter_create( obs_data_t* settings, obs_source_t* context )
 {
-	struct lazy_split_filter_data *filter = new lazy_split_filter_data;
+	struct ls_filter_data *filter = new ls_filter_data;
 
 	filter->context = context;
 	filter->cv_frame_count = 1;
-
-	/* TODO these need to be deleted */
-	filter->frame_buf = new lazysplits::ls_frame_buf;
-	filter->thread_h = new lazysplits::ls_thread_handler;
-	filter->calib = new lazysplits::ls_source_calibration;
 	
 	char* effect_path =  obs_module_file("effect/calibration.effect");
 	if( effect_path ){
@@ -98,28 +97,21 @@ static void* lazy_splits_filter_create( obs_data_t* settings, obs_source_t* cont
 	else{ blog( LOG_INFO, "[lazysplits] obs_module_file(\"effect\") is null" ); }
 	bfree(effect_path);
 
-	lazy_splits_filter_update( filter, settings );
+	ls_filter_update( filter, settings );
 
 	return filter;
 }
 
-static void lazy_splits_filter_destroy(void* data) {
-	struct lazy_split_filter_data* filter = static_cast<lazy_split_filter_data*>(data);
-
-	//kill cv thread if it's live
-	if( filter->thread_h->ls_thread_is_live() ){
-		filter->thread_h->ls_thread_terminate();
-	}
-
-    delete static_cast<lazy_split_filter_data*>(data);
+static void ls_filter_destroy(void* data) {
+    delete static_cast<ls_filter_data*>(data);
 }
 
-static void lazy_splits_filter_video_tick( void *data, float seconds ){
-	struct lazy_split_filter_data* filter = static_cast<lazy_split_filter_data*>(data);
+static void ls_filter_video_tick( void *data, float seconds ){
+	struct ls_filter_data* filter = static_cast<ls_filter_data*>(data);
 
 	//initialize ls thread
-	if( !filter->thread_h->ls_thread_is_live() ){
-		filter->thread_h->ls_thread_init( filter->frame_buf, filter->calib );
+	if( !filter->thread->ls_thread_is_live() ){
+		filter->thread->ls_thread_init( filter->frame_buf, filter->calib );
 	}
 
 	if( filter->cv_frame_count % 100 == 0){
@@ -134,8 +126,8 @@ static void lazy_splits_filter_video_tick( void *data, float seconds ){
 
 }
 
-static void lazy_splits_filter_render_video(void *data, gs_effect_t *effect){
-	struct lazy_split_filter_data* filter = static_cast<lazy_split_filter_data*>(data);
+static void ls_filter_render_video(void *data, gs_effect_t *effect){
+	struct ls_filter_data* filter = static_cast<ls_filter_data*>(data);
 	
 	if( !filter->is_calib || !filter->calib->tex_loaded() || !filter->calib->effect_loaded() || !filter->calib->image_loaded() ){
 		obs_source_skip_video_filter(filter->context);
@@ -186,9 +178,9 @@ static void lazy_splits_filter_render_video(void *data, gs_effect_t *effect){
 	//obs_source_skip_video_filter(filter->context);
 }
 
-static struct obs_source_frame* lazy_splits_filter_video( void* data, struct obs_source_frame* frame)
+static struct obs_source_frame* ls_filter_video( void* data, struct obs_source_frame* frame)
 {
-	struct lazy_split_filter_data* filter = static_cast<lazy_split_filter_data*>(data);
+	struct ls_filter_data* filter = static_cast<ls_filter_data*>(data);
 
 	/*
 	if(*filter->calib_img_path){
@@ -252,7 +244,8 @@ static bool offset_calibration_toggle( obs_properties_t *props, obs_property_t *
 	return true;
 }
 
-static obs_properties_t* lazy_splits_filter_properties(void* data)
+
+static obs_properties_t* ls_filter_properties(void* data)
 {
 	obs_properties_t *props = obs_properties_create();
 	
@@ -262,12 +255,12 @@ static obs_properties_t* lazy_splits_filter_properties(void* data)
 	obs_property_t *offset_calibration = obs_properties_add_bool( props, SETTING_IS_OFFSET_CALIBRATION, TEXT_IS_OFFSET_CALIBRATION );
 	obs_property_set_modified_callback( offset_calibration, offset_calibration_toggle );
 	
-	char* calib_img_path = obs_module_file("img");
 	/* TODO : narrow this down */
-	char* calib_img_filter_str =  "All Image Files (*.bmp *.jpg *.jpeg *.tga *.gif *.png);;All Files (*.*)";
+	std::string calib_img_path = obs_module_file("img");
+	std::string calib_img_filter_str =  "All Image Files (*.bmp *.jpg *.jpeg *.tga *.gif *.png);;All Files (*.*)";
 
 
-	obs_properties_add_path( props, SETTING_CALIB_IMAGE_PATH, TEXT_CALIB_IMAGE_PATH, OBS_PATH_FILE, calib_img_filter_str, calib_img_path );
+	obs_properties_add_path( props, SETTING_CALIB_IMAGE_PATH, TEXT_CALIB_IMAGE_PATH, OBS_PATH_FILE, calib_img_filter_str.c_str(), calib_img_path.c_str() );
 
 	obs_properties_add_float_slider( props, SETTING_CALIB_IMAGE_OPACITY, TEXT_CALIB_IMAGE_OPACITY, 0.0, 100.0, 1.00 );
 	obs_properties_add_float_slider( props, SETTING_OFFSET_X, TEXT_OFFSET_X, -50.0, 50.0, 0.05 );
@@ -278,7 +271,7 @@ static obs_properties_t* lazy_splits_filter_properties(void* data)
 	return props;
 }
 
-static void lazy_splits_filter_defaults(obs_data_t *settings)
+static void ls_filter_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_int( settings, SETTING_POLLING_MS, 50 );
 	obs_data_set_default_int( settings, SETTING_CV_FRAME_SKIP, 10 );
@@ -292,32 +285,32 @@ static void lazy_splits_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_double( settings, SETTING_SCALE_Y, 100.0F );
 }
 
-struct obs_source_info lazy_splits_filter = {
+struct obs_source_info ls_filter = {
     /* ----------------------------------------------------------------- */
     /* Required implementation*/
 
-    /* id                  */ "lazy_splits_filter",
+    /* id                  */ "ls_filter",
     /* type                */ OBS_SOURCE_TYPE_FILTER,
     /* output_flags        */ OBS_SOURCE_VIDEO,
-    /* get_name            */ lazy_splits_filter_name,
-    /* create              */ lazy_splits_filter_create,
-    /* destroy             */ lazy_splits_filter_destroy,
+    /* get_name            */ ls_filter_name,
+    /* create              */ ls_filter_create,
+    /* destroy             */ ls_filter_destroy,
     /* get_width           */ 0,
     /* get_height          */ 0,
 
     /* ----------------------------------------------------------------- */
     /* Optional implementation */
 
-    /* get_defaults        */ lazy_splits_filter_defaults,
-    /* get_properties      */ lazy_splits_filter_properties,
-    /* update              */ lazy_splits_filter_update,
+    /* get_defaults        */ ls_filter_defaults,
+    /* get_properties      */ ls_filter_properties,
+    /* update              */ ls_filter_update,
     /* activate            */ 0,
     /* deactivate          */ 0,
     /* show                */ 0,
     /* hide                */ 0,
-    /* video_tick          */ lazy_splits_filter_video_tick,
-    /* video_render        */ lazy_splits_filter_render_video,
-    /* filter_video        */ lazy_splits_filter_video,
+    /* video_tick          */ ls_filter_video_tick,
+    /* video_render        */ ls_filter_render_video,
+    /* filter_video        */ ls_filter_video,
     /* filter_audio        */ 0,
     /* enum_active_sources */ 0,
     /* save                */ 0,
@@ -340,7 +333,7 @@ MODULE_EXPORT const char* obs_module_name(void) {
 OBS_DECLARE_MODULE()
 
 MODULE_EXPORT bool obs_module_load(void) {
-	obs_register_source(&lazy_splits_filter);
+	obs_register_source(&ls_filter);
 
 	return true;
 }

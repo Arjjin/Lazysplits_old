@@ -18,6 +18,7 @@ ls_thread_handler::ls_thread_handler(){
 }
 
 ls_thread_handler::~ls_thread_handler(){
+	blog( LOG_INFO, "[lazysplits] destroying ls_thread_handler" );
 	if( ls_thread_is_live() ){ ls_thread_terminate(); }
 
 	pthread_mutex_destroy(&thread_mutex);
