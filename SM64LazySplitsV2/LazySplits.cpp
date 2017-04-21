@@ -20,7 +20,6 @@
 #define SETTING_CALIB_IMAGE_OPACITY "calib_image_opacity"
 #define SETTING_OFFSET_X "offset_x"
 #define SETTING_OFFSET_Y "offset_y"
-//#define SETTING_STAR_COUNT_CONSTRAIN_SCALE "starcount_constrain_scale"
 #define SETTING_SCALE_X "scale_x"
 #define SETTING_SCALE_Y "scale_y"
 
@@ -31,30 +30,8 @@
 #define TEXT_CALIB_IMAGE_OPACITY "Calibration image opacity"
 #define TEXT_OFFSET_X "Frame x-offset"
 #define TEXT_OFFSET_Y "Frame y-offset"
-//#define TEXT_STAR_COUNT_CONSTRAIN_SCALE "Constrain scaling to aspect ratio"
 #define TEXT_SCALE_X "Frame width scaling"
 #define TEXT_SCALE_Y "Frame height scaling"
-
-/*
-struct lazy_split_filter_data {
-	obs_source_t* context;
-
-	int polling_ms;
-
-	int cv_frame_skip;
-	long cv_frame_count;
-	
-	//circular frame buffer
-	lazysplits::ls_frame_buf* frame_buf;
-
-	//cv thread
-	lazysplits::ls_thread_handler* thread_h;
-
-	//cv calibration stuff
-	lazysplits::ls_source_calibration* calib;
-	bool is_calib;
-};
-*/
 
 using namespace lazysplits;
 
@@ -87,6 +64,7 @@ static void* ls_filter_create( obs_data_t* settings, obs_source_t* context )
 	struct ls_filter_data *filter = new ls_filter_data;
 
 	filter->context = context;
+	filter->calib->set_source(context);
 	filter->cv_frame_count = 1;
 	
 	char* effect_path =  obs_module_file("effect/calibration.effect");
@@ -115,10 +93,15 @@ static void ls_filter_video_tick( void *data, float seconds ){
 	}
 
 	if( filter->cv_frame_count % 100 == 0){
-		blog( LOG_INFO, "[lazysplits] framecount : %i, source width : %i, source height : %i",
+		blog( LOG_INFO, "[lazysplits] framecount : %i, source width : %i, source height : %i, calib x : %f,calib y : %f, calib scale x : %f, calib scale y : %f, test : %f",
 			filter->cv_frame_count,
 			obs_source_get_width(filter->context),
-			obs_source_get_height(filter->context)
+			obs_source_get_height(filter->context),
+			filter->calib->get_offset_x(),
+			filter->calib->get_offset_y(),
+			filter->calib->get_scale_x(),
+			filter->calib->get_scale_y(),
+			(float) obs_source_get_width(filter->context) - ( SM64_BASE_WIDTH * filter->calib->get_scale_x() )
 		);
 	}
 
@@ -133,7 +116,7 @@ static void ls_filter_render_video(void *data, gs_effect_t *effect){
 		obs_source_skip_video_filter(filter->context);
 		return;
 	}
-	
+
 	if ( !obs_source_process_filter_begin( filter->context, GS_RGBA, OBS_ALLOW_DIRECT_RENDERING) ){
 		return;
 	}
@@ -149,15 +132,23 @@ static void ls_filter_render_video(void *data, gs_effect_t *effect){
 	calib_scale.y = filter->calib->get_scale_y();
 	filter->calib->unlock_mutex();
 
-	//aspect correction
+	//aspect and scale correction
 	float source_width = obs_source_get_width(filter->context);
 	float source_height = obs_source_get_height(filter->context);
 	float tex_width = gs_texture_get_width( filter->calib->get_tex() );
 	float tex_height = gs_texture_get_height( filter->calib->get_tex() );
 	float aspect_correction = (source_width/source_height) / (tex_width/tex_height);
 
-	if( source_width >= source_height ){ calib_scale.x/=aspect_correction; }
-	else{ calib_scale.y/=aspect_correction; }
+	if( source_width >= source_height ){
+		float scale_correction = tex_height/source_height;
+		calib_scale.x = (calib_scale.x / aspect_correction) * scale_correction;
+		calib_scale.y *= scale_correction;
+	}
+	else{
+		float scale_correction = tex_width/source_width;
+		calib_scale.y = (calib_scale.y / aspect_correction) * scale_correction;
+		calib_scale.x *= scale_correction;
+	}
 
 	//scale centering
 	float scale_dif_x = 1.0F - calib_scale.x;
@@ -175,58 +166,20 @@ static void ls_filter_render_video(void *data, gs_effect_t *effect){
 	gs_effect_set_vec2( param, &calib_scale );
 
 	obs_source_process_filter_end( filter->context, filter->calib->get_effect(), 0, 0 );
-	//obs_source_skip_video_filter(filter->context);
 }
 
 static struct obs_source_frame* ls_filter_video( void* data, struct obs_source_frame* frame)
 {
 	struct ls_filter_data* filter = static_cast<ls_filter_data*>(data);
 
-	/*
-	if(*filter->calib_img_path){
-		cv::Mat img = cv::imread( filter->calib_img_path, CV_LOAD_IMAGE_COLOR );
-		if( img.data ){
-			cv::Size src_dims( frame->width, frame->height );
-
-			cv::Mat img2, img3;
-			cv::resize( img, img2, src_dims );
-			cv::cvtColor( img2, img3, CV_BGR2YUV );
-
-			blog( LOG_INFO, "whatever : %i", frame->format );
-
-			//frame->data[0] = img.data;
-			std::vector<int> compression_params;
-			compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
-			compression_params.push_back(1);
-
-
-
-			cv::imwrite( "img.png", img3, compression_params );
-		}
-	}
-	*/
-
-	/*
-	if( filter->cv_frame_count%filter->cv_frame_skip == 0 ){
+	if( !filter->is_calib && filter->cv_frame_count%filter->cv_frame_skip == 0 ){
 		if( frame && filter->frame_buf ){
 			pthread_mutex_lock( filter->frame_buf->get_mutex() );
-			if( !filter->frame_buf->try_push_frame(frame) ){
-				blog( LOG_INFO, "[lazysplits] [%i] Frame buffer full", filter->cv_frame_count );
-			}
+			bool frame_pushed = filter->frame_buf->try_push_frame(frame);
 			pthread_mutex_unlock( filter->frame_buf->get_mutex() );
-			if( filter->thread_h->cv_thread_is_sleeping() ){ filter->thread_h->cv_thread_wake(); }
+			if( frame_pushed && filter->thread->ls_thread_is_sleeping() ){ filter->thread->ls_thread_wake(); }
 		}
-
-		//cv::Mat test_mat = filter->CVTest->OBS_2_CV_BGR( frame );
-
-		//std::vector<int> compression_params;
-		//compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
-		//compression_params.push_back(1);
-
-
-		//cv::imwrite( "cap.png", test_mat, compression_params );
 	}
-	*/
 
 	return frame;
 }
@@ -265,8 +218,8 @@ static obs_properties_t* ls_filter_properties(void* data)
 	obs_properties_add_float_slider( props, SETTING_CALIB_IMAGE_OPACITY, TEXT_CALIB_IMAGE_OPACITY, 0.0, 100.0, 1.00 );
 	obs_properties_add_float_slider( props, SETTING_OFFSET_X, TEXT_OFFSET_X, -50.0, 50.0, 0.05 );
 	obs_properties_add_float_slider( props, SETTING_OFFSET_Y, TEXT_OFFSET_Y, -50.0, 50.0, 0.05 );
-	obs_properties_add_float_slider( props, SETTING_SCALE_X, TEXT_SCALE_X, 50.0, 150.0, 0.05 );
-	obs_properties_add_float_slider( props, SETTING_SCALE_Y, TEXT_SCALE_Y, 50.0, 150.0, 0.05 );
+	obs_properties_add_float_slider( props, SETTING_SCALE_X, TEXT_SCALE_X, 20.0, 500.0, 0.05 );
+	obs_properties_add_float_slider( props, SETTING_SCALE_Y, TEXT_SCALE_Y, 20.0, 500.0, 0.05 );
 
 	return props;
 }

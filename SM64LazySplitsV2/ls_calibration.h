@@ -1,10 +1,13 @@
 #pragma once
 
+#include <obs-module.h>
 #include <graphics\effect.h>
 extern "C" {
 #include <graphics\image-file.h>
 }
 #include <util\threading.h>
+
+#include <opencv2\core.hpp>
 
 #include <string>
 
@@ -17,6 +20,8 @@ class ls_source_calibration{
 
 		void lock_mutex();
 		void unlock_mutex();
+
+		void set_source( obs_source_t* source);
 
 		bool try_set_image( const char* path );
 		bool image_loaded();
@@ -39,7 +44,11 @@ class ls_source_calibration{
 		float get_scale_x();
 		float get_scale_y();
 
+		cv::Rect calibrate_rect( const cv::Rect& rect );
+
 	private:
+		obs_source_t* calib_source;
+
 		pthread_mutex_t calib_mutex;
 
 		float opacity;

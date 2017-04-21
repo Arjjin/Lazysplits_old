@@ -5,6 +5,8 @@
 
 #include <sstream>
 
+#include "SM64_constants.h"
+
 using namespace lazysplits;
 
 ls_thread_handler::ls_thread_handler(){
@@ -39,6 +41,7 @@ void* ls_thread_handler::ls_thread_frame_proc( void* data ){
 	compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
 	compression_params.push_back(1);
 
+	cv::Rect star_crop;
 	//main thread loop
 	while(true){
 		//check if thread is signalled to terminate
@@ -51,6 +54,7 @@ void* ls_thread_handler::ls_thread_frame_proc( void* data ){
 
 		//frame buffer loop
 		while(true){
+			if( star_crop.size().area() <= 1 ){ star_crop = t_data->calib->calibrate_rect( cv::Rect( SM64_STAR_COUNT_1x1_X, SM64_STAR_COUNTER_Y, SM64_STAR_COUNT_1x1_WIDTH, SM64_STAR_COUNTER_HEIGHT ) ); }
 			//check if thread is signalled to terminate
 			pthread_mutex_lock(t_data->thread_mutex);
 			if( *t_data->thread_should_terminate ){
@@ -60,28 +64,34 @@ void* ls_thread_handler::ls_thread_frame_proc( void* data ){
 			pthread_mutex_unlock(t_data->thread_mutex);
 
 			//check if frames are available
+			obs_source_frame* frame;
 			pthread_mutex_lock( t_data->frame_buf->get_mutex() );
 			if(  t_data->frame_buf->is_frames() ){
-				obs_source_frame* frame = t_data->frame_buf->pop_frame();
-				if( frame ){
-					cv::Mat BGR_frame = OBS_2_CV_BGR(frame);
-					if(BGR_frame.data){
-						std::stringstream ss;
-						ss << "img/cap" << im_num << ".png";
-						cv::imwrite( ss.str(), BGR_frame, compression_params );
-						im_num++;
-					}
-				}
+				frame = t_data->frame_buf->pop_frame();
 			}
 			else{
 				pthread_mutex_unlock( t_data->frame_buf->get_mutex() );
 				break;
 			}
 			pthread_mutex_unlock( t_data->frame_buf->get_mutex() );
+
+			if( frame ){
+				cv::Mat BGR_frame = OBS_2_CV_BGR( frame, star_crop );
+				if(BGR_frame.data){
+					std::stringstream ss;
+					ss << "img/cap" << im_num << ".png";
+					cv::imwrite( ss.str(), BGR_frame, compression_params );
+					im_num++;
+				}
+			}
 		}
 
 		//no more frames, sleep until signalled to wake
 		pthread_mutex_lock(t_data->thread_mutex);
+		if( *t_data->thread_should_terminate ){
+			pthread_mutex_unlock(t_data->thread_mutex);
+			break;
+		}
 		*t_data->thread_is_sleeping = true;
 		blog( LOG_INFO, "[lazysplits] thread sleeping" );
 		while( !*t_data->thread_should_wake ){
@@ -154,7 +164,7 @@ bool ls_thread_handler::ls_thread_is_live(){
 	pthread_mutex_lock(&thread_mutex);
 	b_out = thread_is_live;
 	pthread_mutex_unlock(&thread_mutex);
-
+	
 	return b_out;
 }
 

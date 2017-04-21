@@ -1,11 +1,12 @@
 #include "ls_calibration.h"
 
-#include <obs-module.h>
+#include "SM64_constants.h"
 
 
 using namespace lazysplits;
 
-ls_source_calibration::ls_source_calibration(){
+ls_source_calibration::ls_source_calibration()
+{
 	pthread_mutex_init( &calib_mutex, NULL );
 	calib_img = static_cast<gs_image_file_t*>( bzalloc( sizeof(gs_image_file_t) ) ); 
 	calib_effect = static_cast<gs_effect_t*>( bzalloc( sizeof(gs_effect_t) ) );
@@ -30,6 +31,8 @@ ls_source_calibration::~ls_source_calibration(){
 
 	bfree(calib_img);
 }
+
+void ls_source_calibration::set_source( obs_source_t* source){ calib_source = source; }
 
 void ls_source_calibration::lock_mutex(){ pthread_mutex_lock(&calib_mutex); }
 
@@ -84,3 +87,39 @@ float ls_source_calibration::get_offset_x(){ return offset_x; }
 float ls_source_calibration::get_offset_y(){ return offset_y; }
 float ls_source_calibration::get_scale_x(){ return scale_x; }
 float ls_source_calibration::get_scale_y(){ return scale_y; }
+
+cv::Rect ls_source_calibration::calibrate_rect( const cv::Rect& rect ){
+	float calib_img_width = calib_img->cx * scale_x;
+	float calib_img_height = calib_img->cy * scale_y;
+	float source_width, source_height, calib_img_x, calib_img_y;
+	if( calib_source ){
+		blog( LOG_WARNING, "[lazysplits] ls_source_calibration::transform_rect() : no calib_source!" );
+		source_width = obs_source_get_width(calib_source);
+		source_height = obs_source_get_height(calib_source);
+	}
+	else{
+		source_width = calib_img_width;
+		source_height = calib_img_height;
+	}
+	//take into account calibration uses scale centering
+	calib_img_x = (source_width - calib_img_width) * 0.5F;
+	calib_img_y = (source_height - calib_img_height) * 0.5F;
+	//add calibration offsets
+	calib_img_x += source_width * offset_x;
+	calib_img_y += source_height * offset_y;
+
+	cv::Rect out_rect(
+		( rect.x * scale_x ) + calib_img_x,
+		( rect.y * scale_y ) + calib_img_y,
+		rect.width*scale_x,
+		rect.height*scale_y
+	);
+	
+	//handle out of bounds/wacky offset and scale
+	out_rect.x = ( out_rect.x < 0.0F ) ? 0.0F : ( out_rect.x > source_width ) ? source_width : out_rect.x;
+	out_rect.y = ( out_rect.y < 0.0F ) ? 0.0F : ( out_rect.y > source_width ) ? source_width : out_rect.y;
+	if( out_rect.x + out_rect.width > source_width ){ out_rect.width -= ( out_rect.width - source_width - 1.0F ); }
+	if( out_rect.y + out_rect.height > source_height ){ out_rect.height -= ( out_rect.height - source_height - 1.0F ); }
+
+	return out_rect;
+}

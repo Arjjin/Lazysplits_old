@@ -55,7 +55,7 @@ cv::Mat lazysplits::OBS_2_CV_BGR( obs_source_frame* frame ){
 }
 
 
-cv::Mat lazysplits::OBS_2_CV_BGR( obs_source_frame* frame, cv::Rect bounds ){
+cv::Mat lazysplits::OBS_2_CV_BGR( obs_source_frame* frame, cv::Rect& bounds ){
 	cv::Mat BGR = OBS_2_CV_BGR(frame);
 	BGR = BGR(bounds);
 

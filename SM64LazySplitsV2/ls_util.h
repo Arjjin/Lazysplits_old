@@ -5,5 +5,5 @@
 
 namespace lazysplits{
 	cv::Mat OBS_2_CV_BGR( obs_source_frame* frame );
-	cv::Mat OBS_2_CV_BGR( obs_source_frame* frame, cv::Rect bounds );
+	cv::Mat OBS_2_CV_BGR( obs_source_frame* frame, cv::Rect& bounds );
 } //namespace lazysplits

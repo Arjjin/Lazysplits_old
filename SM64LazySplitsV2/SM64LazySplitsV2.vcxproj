@@ -133,7 +133,7 @@
       <IntrinsicFunctions>false</IntrinsicFunctions>
       <SDLCheck>
       </SDLCheck>
-      <AdditionalIncludeDirectories>C:\Users\G\Documents\GitHub\obs-studio\libobs;C:\Users\G\Desktop\OBS_build\config;C:\Users\G\Desktop\opencv\opencv\build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\G\Documents\GitHub\obs-studio\libobs;C:\Users\G\Desktop\opencv\opencv\build\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat />
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <WholeProgramOptimization>false</WholeProgramOptimization>
@@ -147,7 +147,7 @@
       <OptimizeReferences>
       </OptimizeReferences>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>C:\Users\G\Desktop\obs-studio_source\build64\libobs\Release\obs.lib;C:\Users\G\Desktop\OBS_build\deps\w32-pthreads\Release\w32-pthreads.lib;C:\Users\G\Desktop\opencv\opencv\build\x64\vc14\lib\opencv_world320.lib;C:\Users\G\Desktop\OBS_build_deps\OBS_dep\win64\bin\avcodec.lib;C:\Users\G\Desktop\OBS_build_deps\OBS_dep\win64\bin\avformat.lib;C:\Users\G\Desktop\OBS_build_deps\OBS_dep\win64\bin\avutil.lib;C:\Users\G\Desktop\OBS_build_deps\OBS_dep\win64\bin\swscale.lib;C:\Users\G\Desktop\OBS_build_deps\OBS_dep\win64\bin\swresample.lib;C:\Users\G\Desktop\OBS_build_deps\OBS_dep\win64\bin\zlib.lib;C:\Users\G\Desktop\obs-studio_source\build64\deps\jansson\lib\Release\jansson.lib;C:\Users\G\Desktop\OBS_build_deps\OBS_dep\win64\bin\speexdsp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>C:\Users\G\Desktop\obs-studio_source\build64\libobs\Release\obs.lib;C:\Users\G\Desktop\obs-studio_source\build64\deps\w32-pthreads\Release\w32-pthreads.lib;C:\Users\G\Desktop\opencv\opencv\build\x64\vc14\lib\opencv_world320.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
